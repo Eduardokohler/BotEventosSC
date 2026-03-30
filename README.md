@@ -154,7 +154,6 @@ O projeto está configurado para deploy automático no Render. Veja [DEPLOY_REND
 ```
 BotEventosSC/
 ├── bot_discord.py              # Bot principal com comandos Discord
-├── exemplo_selenium.py         # Script de exemplo com webhook
 ├── requirements.txt            # Dependências Python
 ├── Dockerfile                  # Configuração Docker
 ├── .env.example               # Template de variáveis de ambiente
@@ -196,6 +195,11 @@ BotEventosSC/
 ### Erro de WebDriver
 - Execute `pip install --upgrade webdriver-manager`
 - Limpe o cache: `rm -rf ~/.wdm/` (Linux/macOS) ou `rmdir %USERPROFILE%\.wdm` (Windows)
+
+### Eventos não encontrados ao executar
+- O site pode ter mudado sua estrutura HTML
+- Verifique os XPaths no código
+- Teste a conexão com o site manualmente
 
 ## 📝 Logs
 
