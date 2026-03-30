@@ -14,3 +14,5 @@ imagens_eventos/
 .vscode/
 .idea/
 *.log
+Dockerfile
+exemplo_selenium.py
