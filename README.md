@@ -236,3 +236,9 @@ Para dúvidas ou problemas, abra uma [Issue](https://github.com/Eduardokohler/Bo
 ---
 
 **Última atualização:** Março 2026
+
+---
+**Futuras Atualizações**
+
+- Funcionalidade nova: Adicionar lista de cidades, sendo totalmente dinâmico e personalizável.
+- Sites a ser integrados no sistema: Blueticket.com.br, Eventim.com.br, guicheweb.com.br, ingresso.com e ingresse.com
