@@ -19,6 +19,10 @@ CANAL_ID = int(os.getenv("CANAL_ID", "0"))  # ID do canal onde o bot vai respond
 # Lista de cidades
 cidades = ["Brusque", "Blumenau", "Balneário Camboriú", "Camboriú", "Itapema", "Porto Belo", "Itajaí"]
 
+# Controle de execuções ativas: {user_id: asyncio.Event}
+# O Event é usado como token de cancelamento — quando setado, sinaliza para parar
+buscas_ativas: dict[int, asyncio.Event] = {}
+
 # Configurar bot
 intents = discord.Intents.default()
 intents.message_content = True
@@ -30,8 +34,16 @@ def parse_cidades(args: str) -> list[str]:
         return []
     return [c.strip() for c in args.split(";") if c.strip()]
 
-async def buscar_eventos(canal, cidades_busca: list[str] = None):
-    """Função que executa a automação do Selenium"""
+async def cancelavel_sleep(segundos: float, cancelar: asyncio.Event):
+    """asyncio.sleep que respeita o token de cancelamento."""
+    try:
+        await asyncio.wait_for(cancelar.wait(), timeout=segundos)
+    except asyncio.TimeoutError:
+        pass  # Tempo esgotou normalmente, sem cancelamento
+
+
+async def buscar_eventos(canal, cidades_busca: list[str] = None, cancelar: asyncio.Event = None):
+    """Função que executa a automação do Selenium com suporte a cancelamento."""
     lista = cidades_busca if cidades_busca else cidades
 
     await canal.send("🔍 Iniciando busca de eventos...")
@@ -50,11 +62,17 @@ async def buscar_eventos(canal, cidades_busca: list[str] = None):
     try:
         # Acessar o site (URL CORRETA)
         driver.get("https://www.ingressonacional.com.br/balada")
-        await asyncio.sleep(3)
-        
+        await cancelavel_sleep(3, cancelar)
+        if cancelar.is_set():
+            return
+
         total_eventos = 0
         
         for cidade in lista:
+            # Checar cancelamento antes de cada cidade
+            if cancelar.is_set():
+                return
+
             await canal.send(f"📍 Pesquisando em: **{cidade}**")
             
             # Encontrar a barra de pesquisa usando o XPATH fornecido
@@ -62,54 +80,47 @@ async def buscar_eventos(canal, cidades_busca: list[str] = None):
                 EC.presence_of_element_located((By.XPATH, "/html/body/div[1]/div[3]/div/div[2]/div/form/div/div/input"))
             )
             
-            # Limpar o campo antes de digitar
             search_box.clear()
-            
-            # Digitar o nome da cidade
             search_box.send_keys(cidade)
             
-            # Aguardar um pouco para ver a pesquisa
-            await asyncio.sleep(2)
-            
-            # Pressionar Enter para pesquisar
+            await cancelavel_sleep(2, cancelar)
+            if cancelar.is_set():
+                return
+
             search_box.send_keys(Keys.RETURN)
             
-            # Aguardar os resultados carregarem
-            await asyncio.sleep(3)
+            await cancelavel_sleep(3, cancelar)
+            if cancelar.is_set():
+                return
             
             # Buscar a lista de eventos
             try:
                 lista_eventos = driver.find_element(By.XPATH, "/html/body/div[1]/div[3]/div/div[3]/div[1]")
                 
-                # Encontrar todos os eventos dentro da lista
                 eventos = lista_eventos.find_elements(By.XPATH, ".//div[contains(@class, 'event') or contains(@class, 'item')]")
                 
                 if not eventos:
-                    # Tentar buscar de forma mais genérica
                     eventos = lista_eventos.find_elements(By.XPATH, "./div")
                 
                 if not eventos or len(eventos) == 0:
                     await canal.send(f"⚠️ Nenhum evento encontrado em {cidade}")
                     continue
                 
-                # Percorrer cada evento
                 for i in range(1, len(eventos) + 1):
+                    # Checar cancelamento a cada evento
+                    if cancelar.is_set():
+                        return
+
                     try:
-                        # XPath para data do evento
-                        data_xpath = f"/html/body/div[1]/div[3]/div/div[3]/div[1]/div[{i}]/div[1]/div/div[1]/span"
-                        # XPath para nome do evento
-                        nome_xpath = f"/html/body/div[1]/div[3]/div/div[3]/div[1]/div[{i}]/div[2]/div[1]/h2"
-                        # XPath para imagem do evento
+                        data_xpath   = f"/html/body/div[1]/div[3]/div/div[3]/div[1]/div[{i}]/div[1]/div/div[1]/span"
+                        nome_xpath   = f"/html/body/div[1]/div[3]/div/div[3]/div[1]/div[{i}]/div[2]/div[1]/h2"
                         imagem_xpath = f"/html/body/div[1]/div[3]/div/div[3]/div[1]/div[{i}]/a/div/img"
                         
                         data = driver.find_element(By.XPATH, data_xpath).text
                         nome = driver.find_element(By.XPATH, nome_xpath).text
                         imagem_element = driver.find_element(By.XPATH, imagem_xpath)
-                        
-                        # Pegar o atributo src da imagem
                         link_imagem = imagem_element.get_attribute("src")
                         
-                        # Criar embed
                         embed = discord.Embed(
                             title=f"🎭 {nome}",
                             description=f"**📅 Data:** {data}\n**📍 Local:** {cidade}",
@@ -120,12 +131,12 @@ async def buscar_eventos(canal, cidades_busca: list[str] = None):
                         
                         await canal.send(embed=embed)
                         total_eventos += 1
-                        await asyncio.sleep(1)
+                        await cancelavel_sleep(1, cancelar)
                         
-                    except Exception as e:
+                    except Exception:
                         continue
                         
-            except Exception as e:
+            except Exception:
                 await canal.send(f"⚠️ Nenhum evento encontrado para {cidade} ou erro ao buscar")
         
         await canal.send(f"✅ Busca concluída! Total de eventos encontrados: **{total_eventos}**")
@@ -150,6 +161,12 @@ async def buscar(ctx, *, args: str = None):
       !buscar São Paulo                → apenas São Paulo
       !buscar São Paulo;Rio de Janeiro → múltiplas cidades
     """
+    user_id = ctx.author.id
+
+    if user_id in buscas_ativas:
+        await ctx.send("⚠️ Você já tem uma busca em andamento. Use `!parar` para cancelá-la antes de iniciar outra.")
+        return
+
     cidades_busca = parse_cidades(args)
 
     if cidades_busca:
@@ -157,7 +174,31 @@ async def buscar(ctx, *, args: str = None):
     else:
         await ctx.send("🚀 Iniciando automação nas cidades padrão...")
 
-    await buscar_eventos(ctx.channel, cidades_busca or None)
+    # Criar token de cancelamento para este usuário
+    cancelar = asyncio.Event()
+    buscas_ativas[user_id] = cancelar
+
+    try:
+        await buscar_eventos(ctx.channel, cidades_busca or None, cancelar)
+    finally:
+        # Garantir limpeza mesmo em caso de erro
+        buscas_ativas.pop(user_id, None)
+
+    if cancelar.is_set():
+        await ctx.send("🛑 Busca cancelada pelo usuário.")
+
+
+@bot.command(name='parar', aliases=['cancelar'])
+async def parar(ctx):
+    """Cancela a busca em andamento do usuário."""
+    user_id = ctx.author.id
+
+    if user_id not in buscas_ativas:
+        await ctx.send("ℹ️ Você não tem nenhuma busca em andamento.")
+        return
+
+    buscas_ativas[user_id].set()  # Sinaliza o cancelamento
+    await ctx.send("🛑 Cancelamento solicitado. Aguarde a operação ser interrompida...")
 
 @bot.command(name='eventos')
 async def eventos(ctx, *, args: str = None):
@@ -176,6 +217,7 @@ async def ajuda(ctx):
     embed.add_field(name="!buscar <cidade>", value="Busca em uma cidade específica\nEx: `!buscar Florianópolis`", inline=False)
     embed.add_field(name="!buscar <cidade1>;<cidade2>", value="Busca em múltiplas cidades\nEx: `!buscar São Paulo;Curitiba`", inline=False)
     embed.add_field(name="!eventos", value="Mesmo que !buscar", inline=False)
+    embed.add_field(name="!parar", value="Cancela a busca em andamento (também: `!cancelar`)", inline=False)
     embed.add_field(name="!ajuda", value="Mostra esta mensagem", inline=False)
     await ctx.send(embed=embed)
 
