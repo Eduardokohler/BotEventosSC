@@ -5,7 +5,6 @@ Automação inteligente para agregação e distribuição de eventos em Santa Ca
 [![Python](https://img.shields.io/badge/Python-3.8+-blue?logo=python&logoColor=white)](https://www.python.org/)
 [![Discord.py](https://img.shields.io/badge/Discord.py-2.7.1-7289DA?logo=discord&logoColor=white)](https://discordpy.readthedocs.io/)
 [![Selenium](https://img.shields.io/badge/Selenium-4.41.0-green?logo=selenium&logoColor=white)](https://www.selenium.dev/)
-[![License](https://img.shields.io/badge/License-MIT-yellow)](LICENSE)
 
 ## 📋 Sobre
 
@@ -219,10 +218,6 @@ Contribuições são bem-vindas! Por favor:
 3. Commit suas mudanças (`git commit -m 'Add some AmazingFeature'`)
 4. Push para a branch (`git push origin feature/AmazingFeature`)
 5. Abra um Pull Request
-
-## 📄 Licença
-
-Este projeto está sob a licença MIT. Veja o arquivo [LICENSE](LICENSE) para mais detalhes.
 
 ## 👨‍💻 Autor
 
