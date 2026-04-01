@@ -18,7 +18,7 @@ BOT_TOKEN = os.getenv("BOT_TOKEN")
 CANAL_ID = int(os.getenv("CANAL_ID", "0"))  # ID do canal onde o bot vai responder
 
 # Lista de cidades
-cidades = ["Brusque", "Blumenau", "Balneário Camboriú", "Camboriú", "Itapema", "Porto Belo", "Itajaí"]
+cidades = ["Florianópolis", "Brusque", "Blumenau", "Balneário Camboriú", "Camboriú", "Itapema", "Porto Belo", "Itajaí"]
 
 # Controle de execuções ativas: {user_id: asyncio.Event}
 # O Event é usado como token de cancelamento — quando setado, sinaliza para parar
