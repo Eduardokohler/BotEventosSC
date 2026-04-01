@@ -24,8 +24,16 @@ intents = discord.Intents.default()
 intents.message_content = True
 bot = commands.Bot(command_prefix='!', intents=intents)
 
-async def buscar_eventos(canal):
+def parse_cidades(args: str) -> list[str]:
+    """Parseia cidades informadas pelo usuário, separadas por ';'"""
+    if not args or not args.strip():
+        return []
+    return [c.strip() for c in args.split(";") if c.strip()]
+
+async def buscar_eventos(canal, cidades_busca: list[str] = None):
     """Função que executa a automação do Selenium"""
+    lista = cidades_busca if cidades_busca else cidades
+
     await canal.send("🔍 Iniciando busca de eventos...")
     
     # Configurar Chrome para ambiente Docker/Cloud
@@ -46,7 +54,7 @@ async def buscar_eventos(canal):
         
         total_eventos = 0
         
-        for cidade in cidades:
+        for cidade in lista:
             await canal.send(f"📍 Pesquisando em: **{cidade}**")
             
             # Encontrar a barra de pesquisa usando o XPATH fornecido
@@ -134,15 +142,27 @@ async def on_ready():
     print('------')
 
 @bot.command(name='buscar')
-async def buscar(ctx):
-    """Comando para iniciar a busca de eventos"""
-    await ctx.send("🚀 Iniciando automação...")
-    await buscar_eventos(ctx.channel)
+async def buscar(ctx, *, args: str = None):
+    """Comando para iniciar a busca de eventos.
+    
+    Uso:
+      !buscar                          → cidades padrão
+      !buscar São Paulo                → apenas São Paulo
+      !buscar São Paulo;Rio de Janeiro → múltiplas cidades
+    """
+    cidades_busca = parse_cidades(args)
+
+    if cidades_busca:
+        await ctx.send(f"🚀 Buscando eventos em: **{', '.join(cidades_busca)}**")
+    else:
+        await ctx.send("🚀 Iniciando automação nas cidades padrão...")
+
+    await buscar_eventos(ctx.channel, cidades_busca or None)
 
 @bot.command(name='eventos')
-async def eventos(ctx):
+async def eventos(ctx, *, args: str = None):
     """Alias para o comando buscar"""
-    await buscar(ctx)
+    await buscar(ctx, args=args)
 
 @bot.command(name='ajuda')
 async def ajuda(ctx):
@@ -152,7 +172,9 @@ async def ajuda(ctx):
         description="Lista de comandos do bot de eventos",
         color=0x00ff00
     )
-    embed.add_field(name="!buscar", value="Busca eventos em todas as cidades", inline=False)
+    embed.add_field(name="!buscar", value="Busca eventos nas cidades padrão", inline=False)
+    embed.add_field(name="!buscar <cidade>", value="Busca em uma cidade específica\nEx: `!buscar Florianópolis`", inline=False)
+    embed.add_field(name="!buscar <cidade1>;<cidade2>", value="Busca em múltiplas cidades\nEx: `!buscar São Paulo;Curitiba`", inline=False)
     embed.add_field(name="!eventos", value="Mesmo que !buscar", inline=False)
     embed.add_field(name="!ajuda", value="Mostra esta mensagem", inline=False)
     await ctx.send(embed=embed)
